@@ -51,6 +51,8 @@ class Basic(with_metaclass(ManagedProperties)):
     is_number = False
     is_Atom = False
     is_Symbol = False
+    is_symbol = False
+    is_Indexed = False
     is_Dummy = False
     is_Wild = False
     is_Function = False
@@ -1131,6 +1133,28 @@ class Basic(with_metaclass(ManagedProperties)):
         >>> x.has(x)
         True
 
+        Note ``has`` is a structural algorithm with no knowledge of
+        mathematics. Consider the following half-open interval:
+
+        >>> from sympy.sets import Interval
+        >>> i = Interval.Lopen(0, 5); i
+        (0, 5]
+        >>> i.args
+        (0, 5, True, False)
+        >>> i.has(4)  # there is no "4" in the arguments
+        False
+        >>> i.has(0)  # there *is* a "0" in the arguments
+        True
+
+        Instead, use ``contains`` to determine whether a number is in the
+        interval or not:
+
+        >>> i.contains(4)
+        True
+        >>> i.contains(0)
+        False
+
+
         Note that ``expr.has(*patterns)`` is exactly equivalent to
         ``any(expr.has(p) for p in patterns)``. In particular, ``False`` is
         returned when the list of patterns is empty.
@@ -1540,7 +1564,7 @@ class Basic(with_metaclass(ManagedProperties)):
         else:
             args = self.args
 
-        if pattern is None or isinstance(self.func, pattern):
+        if pattern is None or isinstance(self, pattern):
             if hasattr(self, rule):
                 rewritten = getattr(self, rule)(*args)
                 if rewritten is not None:
@@ -1602,7 +1626,7 @@ class Basic(with_metaclass(ManagedProperties)):
                 if iterable(pattern[0]):
                     pattern = pattern[0]
 
-                pattern = [p.__class__ for p in pattern if self.has(p)]
+                pattern = [p for p in pattern if self.has(p)]
 
                 if pattern:
                     return self._eval_rewrite(tuple(pattern), rule, **hints)

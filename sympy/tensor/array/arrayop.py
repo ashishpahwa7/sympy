@@ -2,14 +2,15 @@ import itertools
 
 import collections
 
-from sympy import S, Tuple, MatrixBase
-from sympy import S, Tuple, diff, MatrixBase
+from sympy import S, Tuple, diff
 
 from sympy.tensor.array import ImmutableDenseNDimArray
 from sympy.tensor.array.ndim_array import NDimArray
 
 
 def _arrayfy(a):
+    from sympy.matrices import MatrixBase
+
     if isinstance(a, NDimArray):
         return a
     if isinstance(a, (MatrixBase, list, tuple, Tuple)):
@@ -70,7 +71,7 @@ def tensorcontraction(array, *contraction_axes):
     Examples
     ========
 
-    >>> from sympy.tensor.array import Array, tensorcontraction
+    >>> from sympy import Array, tensorcontraction
     >>> from sympy import Matrix, eye
     >>> tensorcontraction(eye(3), (0, 1))
     3
@@ -83,7 +84,7 @@ def tensorcontraction(array, *contraction_axes):
     Matrix multiplication may be emulated with a proper combination of
     ``tensorcontraction`` and ``tensorproduct``
 
-    >>> from sympy.tensor.array import tensorproduct
+    >>> from sympy import tensorproduct
     >>> from sympy.abc import a,b,c,d,e,f,g,h
     >>> m1 = Matrix([[a, b], [c, d]])
     >>> m2 = Matrix([[e, f], [g, h]])
@@ -177,7 +178,7 @@ def derive_by_array(expr, dx):
     Examples
     ========
 
-    >>> from sympy.tensor.array import derive_by_array
+    >>> from sympy import derive_by_array
     >>> from sympy.abc import x, y, z, t
     >>> from sympy import cos
     >>> derive_by_array(cos(x*t), x)
@@ -188,6 +189,7 @@ def derive_by_array(expr, dx):
     [[[1, 0], [0, 2*y*z]], [[0, y**2], [0, 0]]]
 
     """
+    from sympy.matrices import MatrixBase
     array_types = (collections.Iterable, MatrixBase, NDimArray)
 
     if isinstance(dx, array_types):
@@ -208,3 +210,67 @@ def derive_by_array(expr, dx):
             return ImmutableDenseNDimArray([expr.diff(i) for i in dx], dx.shape)
         else:
             return diff(expr, dx)
+
+
+def permutedims(expr, perm):
+    """
+    Permutes the indices of an array.
+
+    Parameter specifies the permutation of the indices.
+
+    Examples
+    ========
+
+    >>> from sympy.abc import x, y, z, t
+    >>> from sympy import sin
+    >>> from sympy import Array, permutedims
+    >>> a = Array([[x, y, z], [t, sin(x), 0]])
+    >>> a
+    [[x, y, z], [t, sin(x), 0]]
+    >>> permutedims(a, (1, 0))
+    [[x, t], [y, sin(x)], [z, 0]]
+
+    If the array is of second order, ``transpose`` can be used:
+
+    >>> from sympy import transpose
+    >>> transpose(a)
+    [[x, t], [y, sin(x)], [z, 0]]
+
+    Examples on higher dimensions:
+
+    >>> b = Array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+    >>> permutedims(b, (2, 1, 0))
+    [[[1, 5], [3, 7]], [[2, 6], [4, 8]]]
+    >>> permutedims(b, (1, 2, 0))
+    [[[1, 5], [2, 6]], [[3, 7], [4, 8]]]
+
+    ``Permutation`` objects are also allowed:
+
+    >>> from sympy.combinatorics import Permutation
+    >>> permutedims(b, Permutation([1, 2, 0]))
+    [[[1, 5], [2, 6]], [[3, 7], [4, 8]]]
+
+    """
+    if not isinstance(expr, NDimArray):
+        raise TypeError("expression has to be an N-dim array")
+
+    from sympy.combinatorics import Permutation
+    if not isinstance(perm, Permutation):
+        perm = Permutation(list(perm))
+
+    if perm.size != expr.rank():
+        raise ValueError("wrong permutation size")
+
+    # Get the inverse permutation:
+    iperm = ~perm
+
+    indices_span = perm([range(i) for i in expr.shape])
+
+    new_array = [None]*len(expr)
+    for i, idx in enumerate(itertools.product(*indices_span)):
+        t = iperm(idx)
+        new_array[i] = expr[t]
+
+    new_shape = perm(expr.shape)
+
+    return expr.func(new_array, new_shape)
